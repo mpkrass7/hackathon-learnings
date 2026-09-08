@@ -1,0 +1,386 @@
+{
+  "datasets": [
+    {
+      "name": "1a47c470",
+      "displayName": "incidents_bronze",
+      "catalog": "il_sandbox",
+      "config": {
+        "version": "1.1",
+        "source": "il_sandbox.detroit_911.incidents_bronze",
+        "dimensions": [
+          {
+            "expr": "source.*"
+          },
+          {
+            "displayName": "Call Date/Time",
+            "format": {
+              "type": "date_time",
+              "dateFormat": "locale_short_month",
+              "timeFormat": "locale_hour_minute"
+            },
+            "name": "call_datetime",
+            "expr": "CAST(called_at / 1000 AS TIMESTAMP)",
+            "comment": "Incident call timestamp converted from epoch milliseconds"
+          },
+          {
+            "displayName": "Call Month",
+            "format": {
+              "type": "date",
+              "dateFormat": "locale_short_month"
+            },
+            "name": "call_month",
+            "expr": "DATE_TRUNC('MONTH', CAST(called_at / 1000 AS TIMESTAMP))",
+            "comment": "Month of the incident call, truncated to first of month"
+          }
+        ],
+        "measures": [
+          {
+            "name": "count",
+            "expr": "COUNT(*)",
+            "comment": "Represents the total number of rows in the dataset. Use this measure to count all",
+            "displayName": "Count"
+          },
+          {
+            "displayName": "MTD Incidents",
+            "window": [
+              {
+                "order": "call_month",
+                "range": "current",
+                "semiadditive": "last"
+              }
+            ],
+            "name": "monthly_incidents",
+            "expr": "COUNT(*) FILTER (WHERE DAY(call_datetime) <= DAY(CURRENT_DATE()))",
+            "comment": "Month-to-date incident count, only days up to current day of month"
+          },
+          {
+            "displayName": "Prior MTD Incidents",
+            "window": [
+              {
+                "order": "call_month",
+                "range": "current",
+                "offset": "-1 month",
+                "semiadditive": "last"
+              }
+            ],
+            "name": "prior_month_incidents",
+            "expr": "COUNT(*) FILTER (WHERE DAY(call_datetime) <= DAY(CURRENT_DATE()))",
+            "comment": "Prior month-to-date incident count, same day-of-month cutoff for fair comparison"
+          },
+          {
+            "displayName": "Avg Dispatch MTD",
+            "format": {
+              "type": "number",
+              "decimalPlaces": {
+                "type": "exact",
+                "places": 1.0
+              }
+            },
+            "window": [
+              {
+                "order": "call_month",
+                "range": "current",
+                "semiadditive": "last"
+              }
+            ],
+            "name": "avg_dispatch_mtd",
+            "expr": "AVG(dispatch_time) FILTER (WHERE DAY(call_datetime) <= DAY(CURRENT_DATE()))",
+            "comment": "Average dispatch time month-to-date, only days up to current day of month"
+          },
+          {
+            "displayName": "Prior Avg Dispatch MTD",
+            "format": {
+              "type": "number",
+              "decimalPlaces": {
+                "type": "exact",
+                "places": 1.0
+              }
+            },
+            "window": [
+              {
+                "order": "call_month",
+                "range": "current",
+                "offset": "-1 month",
+                "semiadditive": "last"
+              }
+            ],
+            "name": "prior_avg_dispatch_mtd",
+            "expr": "AVG(dispatch_time) FILTER (WHERE DAY(call_datetime) <= DAY(CURRENT_DATE()))",
+            "comment": "Prior month average dispatch time, same day-of-month cutoff"
+          },
+          {
+            "displayName": "MoM Growth %",
+            "format": {
+              "type": "number",
+              "decimalPlaces": {
+                "type": "exact",
+                "places": 1.0
+              }
+            },
+            "name": "mom_growth_pct",
+            "expr": "(MEASURE(monthly_incidents) - MEASURE(prior_month_incidents)) / MEASURE(prior_month_incidents) * 100",
+            "comment": "Month-over-month incident growth percentage"
+          }
+        ]
+      }
+    }
+  ],
+  "pages": [
+    {
+      "name": "5b7775d9",
+      "displayName": "Baseline",
+      "layout": [
+        {
+          "widget": {
+            "name": "incidents-mtd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1a47c470",
+                  "fields": [
+                    {
+                      "name": "monthly(call_month)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `call_month`)"
+                    },
+                    {
+                      "name": "measure(prior_month_incidents)",
+                      "expression": "MEASURE(`prior_month_incidents`)"
+                    },
+                    {
+                      "name": "measure(monthly_incidents)",
+                      "expression": "MEASURE(`monthly_incidents`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "DATE_TRUNC(\"MONTH\", `call_month`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Incidents MTD",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(monthly_incidents)"
+                },
+                "target": {
+                  "fieldName": "measure(prior_month_incidents)",
+                  "period": {
+                    "type": "relative-to-value-period",
+                    "offset": 0
+                  }
+                },
+                "period": {
+                  "fieldName": "monthly(call_month)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "4c1df6e5",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1a47c470",
+                  "fields": [
+                    {
+                      "name": "daily(call_datetime)",
+                      "expression": "DATE_TRUNC(\"DAY\", `call_datetime`)"
+                    },
+                    {
+                      "name": "measure(count)",
+                      "expression": "MEASURE(`count`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(call_datetime)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(count)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "dispatch-mtd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1a47c470",
+                  "fields": [
+                    {
+                      "name": "monthly(call_month)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `call_month`)"
+                    },
+                    {
+                      "name": "measure(prior_avg_dispatch_mtd)",
+                      "expression": "MEASURE(`prior_avg_dispatch_mtd`)"
+                    },
+                    {
+                      "name": "measure(avg_dispatch_mtd)",
+                      "expression": "MEASURE(`avg_dispatch_mtd`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "DATE_TRUNC(\"MONTH\", `call_month`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Avg Dispatch Time MTD",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(avg_dispatch_mtd)"
+                },
+                "target": {
+                  "fieldName": "measure(prior_avg_dispatch_mtd)",
+                  "period": {
+                    "type": "relative-to-value-period",
+                    "offset": 0
+                  }
+                },
+                "period": {
+                  "fieldName": "monthly(call_month)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 4
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "a2622bc8",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "1536fbdf",
+            "queries": [
+              {
+                "name": "dashboards/01f1a88324471b5f97c886453b1c756a/datasets/01f1a8839d1719aba0e50e743e7a4d2a_zip_code",
+                "query": {
+                  "datasetName": "1a47c470",
+                  "fields": [
+                    {
+                      "name": "zip_code",
+                      "expression": "`zip_code`"
+                    },
+                    {
+                      "name": "zip_code_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "zip_code",
+                    "queryName": "dashboards/01f1a88324471b5f97c886453b1c756a/datasets/01f1a8839d1719aba0e50e743e7a4d2a_zip_code"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
